@@ -1,0 +1,775 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Natural Selection Scenarios</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one screen. Top bar (name, scenario letters, run controls); dish over graph on the left; conditions and data readout in a sidebar. Stacks and scrolls only on phones. */
+:root {
+  --bg: #EEF0F3;
+  --surface: #F9FAFB;
+  --surface-2: #E3E7EC;
+  --ink: #161D26;
+  --muted: #56606D;
+  --line: #C9D0D9;
+  --accent: #E7A32A;
+  --accent-ink: #1A1405;
+  --focus: #2A5BB8;
+  --font-display: 'Bricolage Grotesque', 'Avenir Next', 'Segoe UI', sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-data: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1016; --surface: #141A22; --surface-2: #1D2530; --ink: #E5EAF0; --muted: #98A3B1;
+    --line: #2A3441; --accent: #EDB041; --accent-ink: #1A1405; --focus: #8DB3FF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1016; --surface: #141A22; --surface-2: #1D2530; --ink: #E5EAF0; --muted: #98A3B1;
+  --line: #2A3441; --accent: #EDB041; --accent-ink: #1A1405; --focus: #8DB3FF;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.45; }
+.app {
+  display: flex; flex-direction: column; gap: 10px; padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; margin: 0; }
+h1 { font-size: 21px; font-weight: 800; line-height: 1.1; white-space: nowrap; }
+h2 { font-size: 22px; font-weight: 800; line-height: 1.1; }
+h3 { font-size: 15px; font-weight: 700; }
+button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.picker { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.picker .lbl { font: 600 11px var(--font-body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.letters { display: flex; gap: 4px; overflow-x: auto; min-width: 0; }
+.letter {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); cursor: pointer; font: 700 15px var(--font-display);
+}
+.letter[aria-current="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.run { display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }
+.btn {
+  font: 600 13px var(--font-body); padding: 7px 14px; border-radius: 7px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap;
+}
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; min-width: 96px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { font: 500 12px var(--font-data); padding: 7px 9px; border: 0; background: var(--surface); color: var(--ink); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+.main { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+.dishBox { position: relative; border-radius: 8px; overflow: hidden; background: #0E1A16; aspect-ratio: 1.6; max-width: 100%; display: flex; align-items: center; justify-content: center; }
+#arena { display: block; width: 100%; height: 100%; }
+.clock {
+  position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 6px;
+  background: rgba(8, 16, 13, 0.78); color: #E6EEF0; font: 500 13px var(--font-data); font-variant-numeric: tabular-nums;
+}
+.banner {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; margin: 0 auto; max-width: 440px;
+  padding: 8px 12px; border-radius: 7px; text-align: center; font-size: 13.5px;
+  background: rgba(8, 16, 13, 0.86); color: #E6EEF0; pointer-events: none;
+}
+.chartPanel { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.chartHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.chartHead span { font-size: 12px; color: var(--muted); }
+.chartBox { position: relative; height: 190px; border-radius: 8px; overflow: hidden; background: #0E1A16; }
+#chart { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.side {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+}
+.setup { margin: 4px 0 0; font-size: 14px; }
+.sec { display: flex; flex-direction: column; gap: 6px; }
+.secT { font: 600 11px var(--font-body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin: 0; }
+dl.cond { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 12px; font-size: 13px; }
+dl.cond dt { font-weight: 600; color: var(--muted); }
+dl.cond dd { margin: 0; display: flex; flex-direction: column; gap: 3px; }
+.row { display: flex; align-items: flex-start; gap: 6px; }
+.row .ico { margin-top: 2px; }
+.dim { color: var(--muted); }
+.mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.ico { flex: 0 0 auto; }
+hr.rule { border: 0; border-top: 1px solid var(--line); margin: 0; }
+.prog { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--accent); }
+.timeRow { display: flex; justify-content: space-between; font-size: 12.5px; }
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: left; font: 600 10.5px var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0 4px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th.num, td.num { text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.who { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.foods { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.foods span { display: inline-flex; align-items: center; gap: 5px; }
+.foods b { font-family: var(--font-data); font-weight: 500; color: var(--ink); }
+
+@media (min-width: 760px) and (min-height: 520px) {
+  .app { height: 100%; overflow: hidden; }
+  .main { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 30vw, 380px); }
+  .dishBox { flex: 1 1 62%; aspect-ratio: auto; min-height: 0; }
+  .chartPanel { flex: 1 1 38%; min-height: 120px; max-height: 260px; }
+  .chartBox { flex: 1 1 auto; height: auto; min-height: 0; }
+  #arena { position: absolute; width: auto; height: auto; }
+  .side { overflow-y: auto; }
+}
+@media (min-width: 760px) and (max-height: 740px) {
+  .side { gap: 9px; padding-block: 10px; }
+  .chartPanel { flex-basis: 34%; }
+}
+</style>
+
+<div class="app">
+  <header class="top">
+    <h1>Natural Selection Scenarios</h1>
+    <div class="picker">
+      <span class="lbl" id="scLbl">Scenario</span>
+      <nav class="letters" id="letters" aria-labelledby="scLbl"></nav>
+    </div>
+    <div class="run">
+      <button type="button" class="btn primary" id="play">Play</button>
+      <button type="button" class="btn" id="replay">Replay</button>
+      <div class="seg" role="group" aria-label="Simulation speed" id="speed">
+        <button type="button" data-speed="1" aria-pressed="false">1×</button>
+        <button type="button" data-speed="2" aria-pressed="true">2×</button>
+        <button type="button" data-speed="4" aria-pressed="false">4×</button>
+        <button type="button" data-speed="8" aria-pressed="false">8×</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="stage">
+      <div class="dishBox" id="dishBox">
+        <canvas id="arena" role="img" aria-label="A dish with food items and moving creatures. The sidebar lists the counts."></canvas>
+        <div class="clock" id="clock">0 s</div>
+        <p class="banner" id="banner"></p>
+      </div>
+      <section class="chartPanel" aria-label="Population graph">
+        <div class="chartHead"><h3>Population over time</h3><span>Number of living creatures vs. time in seconds</span></div>
+        <div class="chartBox" id="chartBox"><canvas id="chart" role="img" aria-label="Line graph of the number of living creatures of each species over time."></canvas></div>
+      </section>
+    </div>
+
+    <aside class="side" aria-label="Scenario conditions and data">
+      <div>
+        <h2 id="scTitle">Scenario A</h2>
+        <p class="setup" id="scSetup"></p>
+      </div>
+      <section class="sec">
+        <h3 class="secT">Conditions</h3>
+        <dl class="cond" id="cond"></dl>
+      </section>
+      <hr class="rule">
+      <section class="sec">
+        <h3 class="secT">Data</h3>
+        <div class="timeRow"><span>Time</span><span class="mono" id="timeTxt"></span></div>
+        <div class="prog" aria-hidden="true"><i id="progBar"></i></div>
+        <table>
+          <thead><tr><th>Species</th><th class="num">Alive</th><th class="num">Peak</th><th class="num">Born</th><th class="num">Starved</th></tr></thead>
+          <tbody id="spBody"></tbody>
+        </table>
+        <div class="foods" id="foodList"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+/* ============ SIMULATION ENGINE (no DOM) ============ */
+const W = 960, H = 600;
+const FOODS = {
+  seed:   { name: 'Seeds',   color: '#F2B84B', energy: 24 },
+  berry:  { name: 'Berries', color: '#E8485A', energy: 24 },
+  nectar: { name: 'Nectar',  color: '#5AB0FF', energy: 24 }
+};
+const SPECIES = {
+  cracker:    { name: 'Seed cracker',       color: '#A5E05A', sides: 0, speed: 46, vision: 70,  diet: { seed: 1 } },
+  swift:      { name: 'Swift seed cracker', color: '#B994FF', sides: 3, speed: 68, vision: 105, diet: { seed: 1 } },
+  picker:     { name: 'Berry picker',       color: '#FF9CC2', sides: 4, speed: 46, vision: 70,  diet: { berry: 1 } },
+  sipper:     { name: 'Nectar sipper',      color: '#6FEAD9', sides: 6, speed: 46, vision: 70,  diet: { nectar: 1 } },
+  generalist: { name: 'Generalist',         color: '#FF9B54', sides: 5, speed: 46, vision: 70,  diet: { seed: 0.6, berry: 0.6 } }
+};
+Object.keys(SPECIES).forEach(function (k) {
+  const s = SPECIES[k];
+  s.id = k;
+  s.upkeep = 1.6 + 0.0006 * s.speed * s.speed;   // energy per second
+});
+Object.keys(FOODS).forEach(function (k) { FOODS[k].id = k; });
+
+const CELL = 64, CAP_FOOD = 150, CAP_CREATURES = 320;
+const EAT_R = 11, HANDLE = 0.3, REPRO_E = 75, REPRO_COST = 50, CHILD_E = 40;
+const MAX_E = 120, MATURE = 8, WALL = 14;
+
+function createSim(rng) {
+  const sim = {
+    t: 0, creatures: [], food: [], events: [], stats: {},
+    on: { seed: false, berry: false, nectar: false },
+    acc: { seed: 0, berry: 0, nectar: 0 },
+    growth: 7, repro: 1
+  };
+  const cols = Math.ceil(W / CELL), rows = Math.ceil(H / CELL);
+  let grid = [];
+
+  function stat(id) {
+    return sim.stats[id] || (sim.stats[id] = { born: 0, starved: 0, old: 0, peak: 0 });
+  }
+  function event(kind, c) {
+    if (sim.events.length < 200) sim.events.push({ kind: kind, x: c.x, y: c.y, sp: c.sp, t: 0 });
+  }
+  function spawnFood(type) {
+    sim.food.push({ type: type, x: 10 + rng() * (W - 20), y: 10 + rng() * (H - 20), rot: rng() * 3.14, dead: false });
+  }
+  function foodCount(type) {
+    let n = 0;
+    for (let i = 0; i < sim.food.length; i++) if (sim.food[i].type === type && !sim.food[i].dead) n++;
+    return n;
+  }
+  function buildGrid() {
+    grid = new Array(cols * rows);
+    for (let i = 0; i < grid.length; i++) grid[i] = [];
+    for (let i = 0; i < sim.food.length; i++) {
+      const f = sim.food[i];
+      if (f.dead) continue;
+      const gx = Math.min(cols - 1, Math.max(0, (f.x / CELL) | 0));
+      const gy = Math.min(rows - 1, Math.max(0, (f.y / CELL) | 0));
+      grid[gy * cols + gx].push(f);
+    }
+  }
+  function nearest(c, sp) {
+    let best = null, bd = sp.vision * sp.vision;
+    const r = Math.ceil(sp.vision / CELL);
+    const cx = Math.min(cols - 1, Math.max(0, (c.x / CELL) | 0));
+    const cy = Math.min(rows - 1, Math.max(0, (c.y / CELL) | 0));
+    for (let gy = Math.max(0, cy - r); gy <= Math.min(rows - 1, cy + r); gy++) {
+      for (let gx = Math.max(0, cx - r); gx <= Math.min(cols - 1, cx + r); gx++) {
+        const cell = grid[gy * cols + gx];
+        for (let i = 0; i < cell.length; i++) {
+          const f = cell[i];
+          if (f.dead || !sp.diet[f.type]) continue;
+          const dx = f.x - c.x, dy = f.y - c.y, d = dx * dx + dy * dy;
+          if (d < bd) { bd = d; best = f; }
+        }
+      }
+    }
+    return best;
+  }
+  function turnToward(c, want, maxTurn) {
+    let d = want - c.a;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    c.a += Math.max(-maxTurn, Math.min(maxTurn, d));
+  }
+  function makeCreature(id, x, y, e, age) {
+    return { sp: id, x: x, y: y, a: rng() * 6.283, e: e, age: age, life: 80 + rng() * 40,
+             tgt: null, search: rng() * 0.3, handle: 0, dead: null };
+  }
+
+  sim.addCreatures = function (id, n, ageSpread) {
+    for (let i = 0; i < n; i++) {
+      sim.creatures.push(makeCreature(id, 30 + rng() * (W - 60), 30 + rng() * (H - 60),
+        45 + rng() * 15, rng() * (ageSpread || 0)));
+    }
+    stat(id).peak = Math.max(stat(id).peak, sim.count(id));
+  };
+  sim.seedFood = function (type, n) { for (let i = 0; i < n; i++) spawnFood(type); };
+  sim.setFood = function (type, on) { sim.on[type] = on; };
+  sim.count = function (id) {
+    let n = 0;
+    for (let i = 0; i < sim.creatures.length; i++) if (sim.creatures[i].sp === id) n++;
+    return n;
+  };
+  sim.foodCount = foodCount;
+  sim.limitFor = function (id) {
+    const sp = SPECIES[id];
+    let supply = 0;
+    Object.keys(FOODS).forEach(function (f) {
+      if (sim.on[f] && sp.diet[f]) supply += sim.growth * FOODS[f].energy * sp.diet[f];
+    });
+    return supply / sp.upkeep;
+  };
+
+  sim.step = function (dt) {
+    // food growth
+    Object.keys(FOODS).forEach(function (type) {
+      if (!sim.on[type]) return;
+      sim.acc[type] += sim.growth * dt;
+      while (sim.acc[type] >= 1) {
+        sim.acc[type] -= 1;
+        if (foodCount(type) < CAP_FOOD) spawnFood(type);
+      }
+    });
+    buildGrid();
+
+    // Fast breeders have more, smaller offspring: breeding starts at lower energy,
+    // and each child gets less. Slow breeders invest more in each child.
+    const lg = Math.log2(Math.max(0.1, sim.repro));
+    const thr = Math.max(48, Math.min(100, 75 - 10 * lg));
+    const cost = thr - 25, childE = cost * 0.8;
+    const list = sim.creatures, n = list.length, born = [];
+    const start = n ? (rng() * n) | 0 : 0;
+    for (let k = 0; k < n; k++) {
+      const c = list[(start + k) % n];
+      const sp = SPECIES[c.sp];
+      c.age += dt;
+      c.e -= sp.upkeep * dt;
+      if (c.e <= 0) { c.dead = 'starved'; continue; }
+      if (c.age > c.life) { c.dead = 'old'; continue; }
+
+      if (c.handle > 0) {
+        c.handle -= dt;
+      } else {
+        if (c.tgt && c.tgt.dead) c.tgt = null;
+        c.search -= dt;
+        if (!c.tgt && c.search <= 0) { c.tgt = nearest(c, sp); c.search = 0.15 + rng() * 0.15; }
+        if (c.tgt) {
+          const dx = c.tgt.x - c.x, dy = c.tgt.y - c.y;
+          if (dx * dx + dy * dy < EAT_R * EAT_R) {
+            c.e = Math.min(MAX_E, c.e + FOODS[c.tgt.type].energy * sp.diet[c.tgt.type]);
+            c.tgt.dead = true; c.tgt = null; c.handle = HANDLE;
+          } else {
+            turnToward(c, Math.atan2(dy, dx), 7 * dt);
+          }
+        } else {
+          c.a += (rng() - 0.5) * 10 * dt;
+        }
+        if (c.handle <= 0) {
+          c.x += Math.cos(c.a) * sp.speed * dt;
+          c.y += Math.sin(c.a) * sp.speed * dt;
+          if (c.x < WALL) { c.x = WALL; c.a = Math.PI - c.a; }
+          if (c.x > W - WALL) { c.x = W - WALL; c.a = Math.PI - c.a; }
+          if (c.y < WALL) { c.y = WALL; c.a = -c.a; }
+          if (c.y > H - WALL) { c.y = H - WALL; c.a = -c.a; }
+        }
+      }
+
+      if (c.e >= thr && c.age >= MATURE && list.length + born.length < CAP_CREATURES &&
+          rng() < sim.repro * dt) {
+        c.e -= cost;
+        const child = makeCreature(c.sp, c.x + (rng() - 0.5) * 16, c.y + (rng() - 0.5) * 16, childE, 0);
+        born.push(child);
+        stat(c.sp).born++;
+        event('birth', c);
+      }
+    }
+
+    const alive = [];
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (c.dead) { stat(c.sp)[c.dead]++; event(c.dead, c); } else alive.push(c);
+    }
+    sim.creatures = alive.concat(born);
+    sim.food = sim.food.filter(function (f) { return !f.dead; });
+    sim.t += dt;
+    Object.keys(SPECIES).forEach(function (id) {
+      const s = sim.stats[id];
+      if (s) { const cnt = sim.count(id); if (cnt > s.peak) s.peak = cnt; }
+    });
+  };
+
+  return sim;
+}
+/* ============ END ENGINE ============ */
+
+/* ============ SCENARIOS ============ */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+/* Each scenario: foods on at start, growth, repro, creatures at start, timed events, run length, random seed. */
+var SCENARIOS = [
+  { id: 'a', setup: 'Two kinds of creatures are placed in a dish of seeds.',
+    foods: ['seed'], growth: 7, repro: 1, start: [['picker', 10], ['sipper', 10]], events: [], length: 150, seed: 11 },
+  { id: 'b', setup: 'A small group of seed crackers is placed in a dish of seeds.',
+    foods: ['seed'], growth: 7, repro: 1, start: [['cracker', 6]], events: [], length: 200, seed: 12 },
+  { id: 'c', setup: 'Three kinds of creatures are placed in a dish of berries.',
+    foods: ['berry'], growth: 7, repro: 1, start: [['cracker', 8], ['picker', 8], ['sipper', 8]], events: [], length: 150, seed: 13 },
+  { id: 'd', setup: 'Seed crackers live in a dish where seeds are scarce. Later, a second species arrives.',
+    foods: ['seed'], growth: 3, repro: 1, start: [['cracker', 12]], events: [{ t: 40, add: ['swift', 8] }], length: 300, seed: 14 },
+  { id: 'e', setup: 'Seed crackers live in a dish where seeds are plentiful. Later, a second species arrives.',
+    foods: ['seed'], growth: 14, repro: 1, start: [['cracker', 12]], events: [{ t: 40, add: ['swift', 8] }], length: 300, seed: 15 },
+  { id: 'f', setup: 'Seed crackers live in a dish of seeds. Later, a second species arrives.',
+    foods: ['seed'], growth: 7, repro: 1, start: [['cracker', 12]], events: [{ t: 40, add: ['generalist', 8] }], length: 240, seed: 16 },
+  { id: 'g', setup: 'Two species share a dish that has two kinds of food.',
+    foods: ['seed', 'berry'], growth: 7, repro: 1, start: [['cracker', 10], ['picker', 10]], events: [], length: 240, seed: 17 },
+  { id: 'h', setup: 'Two species share a dish that has two kinds of food.',
+    foods: ['seed', 'berry'], growth: 7, repro: 1, start: [['cracker', 10], ['generalist', 10]], events: [], length: 240, seed: 18 },
+  { id: 'i', setup: 'A few seed crackers are placed in a dish of seeds. They reproduce slowly.',
+    foods: ['seed'], growth: 7, repro: 0.25, start: [['cracker', 6]], events: [], length: 240, seed: 19 },
+  { id: 'j', setup: 'A few seed crackers are placed in a dish of seeds. They reproduce very quickly.',
+    foods: ['seed'], growth: 7, repro: 4, start: [['cracker', 6]], events: [], length: 240, seed: 20 },
+  { id: 'k', setup: 'Seed crackers live in a dish of seeds. Partway through, the food supply changes.',
+    foods: ['seed'], growth: 12, repro: 1, start: [['cracker', 10]], events: [{ t: 100, growth: 4 }], length: 260, seed: 21 },
+  { id: 'l', setup: 'Two species share a dish with two foods. Partway through, one food stops growing.',
+    foods: ['seed', 'berry'], growth: 7, repro: 1, start: [['cracker', 10], ['picker', 10]], events: [{ t: 100, foodOff: 'berry' }], length: 260, seed: 22 }
+];
+function growthWord(g) { return g <= 4 ? 'scarce' : (g >= 12 ? 'plentiful' : 'moderate'); }
+function reproWord(r) { return r <= 0.5 ? 'slow' : (r >= 2 ? 'very fast' : 'normal'); }
+function eventText(ev) {
+  if (ev.add) return ev.add[1] + ' ' + SPECIES[ev.add[0]].name.toLowerCase() + 's are added';
+  if (ev.growth !== undefined) return 'Food growth changes to ' + ev.growth + ' per second (' + growthWord(ev.growth) + ')';
+  if (ev.foodOff) return FOODS[ev.foodOff].name + ' stop growing';
+  return '';
+}
+function buildScenario(sc) {
+  var sim = createSim(mulberry32(sc.seed));
+  sim.growth = sc.growth; sim.repro = sc.repro;
+  sc.foods.forEach(function (f) { sim.setFood(f, true); sim.seedFood(f, 60); });
+  sc.start.forEach(function (p) { sim.addCreatures(p[0], p[1], 35); });
+  return sim;
+}
+function applyEvent(sim, ev) {
+  if (ev.add) sim.addCreatures(ev.add[0], ev.add[1], 35);
+  if (ev.growth !== undefined) sim.growth = ev.growth;
+  if (ev.foodOff) sim.setFood(ev.foodOff, false);
+}
+/* ============ END SCENARIOS ============ */
+
+
+var DT = 1 / 30;
+function $(id) { return document.getElementById(id); }
+var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+var TRAITS = { swift: 'Faster and sees farther; uses more energy', generalist: 'Gets 60% of the energy from each food' };
+
+function foodNames(sp) { return Object.keys(sp.diet).map(function (f) { return FOODS[f].name.toLowerCase(); }).join(' and '); }
+function iconSVG(sp, size) {
+  var r = size / 2 - 1.5, c = size / 2, shape;
+  if (sp.sides === 0) shape = '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="' + sp.color + '" stroke="rgba(15,25,30,.85)" stroke-width="1.4"/>';
+  else {
+    var pts = [];
+    for (var i = 0; i < sp.sides; i++) { var a = -Math.PI / 2 + i * 2 * Math.PI / sp.sides; pts.push((c + Math.cos(a) * r).toFixed(1) + ',' + (c + Math.sin(a) * r).toFixed(1)); }
+    shape = '<polygon points="' + pts.join(' ') + '" fill="' + sp.color + '" stroke="rgba(15,25,30,.85)" stroke-width="1.4" stroke-linejoin="round"/>';
+  }
+  return '<svg class="ico" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true">' + shape + '</svg>';
+}
+function foodDot(type, size) {
+  var c = size / 2;
+  return '<svg class="ico" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-hidden="true"><circle cx="' + c + '" cy="' + c + '" r="' + (c - 2) + '" fill="' + FOODS[type].color + '" stroke="rgba(15,25,30,.85)" stroke-width="1.2"/></svg>';
+}
+
+var cur = 0, sc, sim, ids, allFoods, evIdx = 0, running = false, done = false, history = [], fx = [], speed = 2;
+
+/* ---------- scenario setup ---------- */
+function speciesOf(s) {
+  var out = [];
+  s.start.forEach(function (p) { if (out.indexOf(p[0]) < 0) out.push(p[0]); });
+  s.events.forEach(function (e) { if (e.add && out.indexOf(e.add[0]) < 0) out.push(e.add[0]); });
+  return out;
+}
+function load(i) {
+  cur = i; sc = SCENARIOS[i];
+  sim = buildScenario(sc); ids = speciesOf(sc);
+  allFoods = sc.foods.slice();
+  evIdx = 0; running = false; done = false; history = []; fx = [];
+  record();
+  var L = $('letters').children;
+  for (var k = 0; k < L.length; k++) L[k].setAttribute('aria-current', String(k === i));
+  $('scTitle').textContent = 'Scenario ' + sc.id.toUpperCase();
+  $('scSetup').textContent = sc.setup;
+  renderConditions();
+  refresh();
+}
+function renderConditions() {
+  var h = '';
+  h += '<dt>Food</dt><dd>';
+  sc.foods.forEach(function (f) { h += '<span class="row">' + foodDot(f, 13) + FOODS[f].name + '</span>'; });
+  h += '</dd>';
+  h += '<dt>Food growth</dt><dd><span><span class="mono">' + sc.growth + '</span> per second <span class="dim">(' + growthWord(sc.growth) + ')</span></span></dd>';
+  h += '<dt>At the start</dt><dd>';
+  sc.start.forEach(function (p) {
+    var sp = SPECIES[p[0]];
+    h += '<span class="row">' + iconSVG(sp, 14) + '<span><span class="mono">' + p[1] + '</span> ' + sp.name.toLowerCase() + 's <span class="dim">(eat ' + foodNames(sp) + ')</span>' +
+      (TRAITS[p[0]] ? '<br><span class="dim">' + TRAITS[p[0]] + '</span>' : '') + '</span></span>';
+  });
+  h += '</dd>';
+  h += '<dt>Reproduction</dt><dd><span><span class="mono">×' + sc.repro + '</span> <span class="dim">(' + reproWord(sc.repro) + ')</span></span></dd>';
+  h += '<dt>Events</dt><dd>';
+  if (!sc.events.length) h += '<span class="dim">None</span>';
+  sc.events.forEach(function (e) {
+    var extra = '';
+    if (e.add) {
+      var sp = SPECIES[e.add[0]];
+      extra = ' <span class="dim">(eat ' + foodNames(sp) + ')</span>' + (TRAITS[e.add[0]] ? '<br><span class="dim">' + TRAITS[e.add[0]] + '</span>' : '');
+      h += '<span class="row">' + iconSVG(sp, 14) + '<span>At <span class="mono">' + e.t + ' s</span>: ' + eventText(e) + extra + '</span></span>';
+    } else {
+      h += '<span>At <span class="mono">' + e.t + ' s</span>: ' + eventText(e) + '</span>';
+    }
+  });
+  h += '</dd>';
+  h += '<dt>Run length</dt><dd><span><span class="mono">' + sc.length + '</span> seconds</span></dd>';
+  $('cond').innerHTML = h;
+}
+
+/* ---------- running ---------- */
+function tally() {
+  var c = {};
+  ids.forEach(function (id) { c[id] = 0; });
+  for (var i = 0; i < sim.creatures.length; i++) c[sim.creatures[i].sp] = (c[sim.creatures[i].sp] || 0) + 1;
+  return c;
+}
+function record() { history.push({ t: sim.t, c: tally() }); }
+function stepOnce() {
+  while (evIdx < sc.events.length && sim.t >= sc.events[evIdx].t - 1e-9) applyEvent(sim, sc.events[evIdx++]);
+  sim.step(DT);
+  if (Math.floor(sim.t + 1e-9) > Math.floor(history[history.length - 1].t + 1e-9)) record();
+  if (sim.t >= sc.length - 1e-9) {
+    record(); running = false; done = true;
+  }
+}
+
+/* ---------- readouts ---------- */
+function refresh() {
+  var playBtn = $('play');
+  playBtn.textContent = done ? 'Finished' : (running ? 'Pause' : (sim.t > 0 ? 'Resume' : 'Play'));
+  playBtn.disabled = done;
+  var banner = $('banner');
+  if (done) { banner.hidden = false; banner.textContent = 'Scenario ' + sc.id.toUpperCase() + ' is complete. Record your observations.'; }
+  else if (sim.t === 0) { banner.hidden = false; banner.textContent = 'Read the conditions, then press Play.'; }
+  else banner.hidden = true;
+  updateData();
+  drawArena(); drawChart();
+}
+function updateData() {
+  var t = Math.min(sc.length, sim.t);
+  if (sim.t > 0 && !done) $('banner').hidden = true;
+  $('clock').textContent = Math.floor(t + 1e-9) + ' s';
+  $('timeTxt').textContent = Math.floor(t + 1e-9) + ' of ' + sc.length + ' s';
+  $('progBar').style.width = (100 * t / sc.length) + '%';
+  var c = tally(), h = '';
+  ids.forEach(function (id) {
+    var sp = SPECIES[id], s = sim.stats[id] || { born: 0, starved: 0, peak: 0 };
+    h += '<tr><td><span class="who">' + iconSVG(sp, 14) + sp.name + '</span></td><td class="num">' + c[id] + '</td><td class="num">' + s.peak +
+      '</td><td class="num">' + s.born + '</td><td class="num">' + s.starved + '</td></tr>';
+  });
+  $('spBody').innerHTML = h;
+  var fh = '';
+  allFoods.forEach(function (f) { fh += '<span>' + foodDot(f, 12) + FOODS[f].name + ' <b>' + sim.foodCount(f) + '</b></span>'; });
+  $('foodList').innerHTML = fh + '<span>on the ground</span>';
+}
+
+/* ---------- drawing: dish ---------- */
+var dishBox = $('dishBox'), arenaCv = $('arena'), actx = arenaCv.getContext('2d');
+var chartBox = $('chartBox'), chartCv = $('chart'), cctx = chartCv.getContext('2d');
+var chartW = 600, chartH = 200;
+var oneScreen = window.matchMedia('(min-width: 760px) and (min-height: 520px)');
+function fitCanvases() {
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  var r = dishBox.getBoundingClientRect(), w, h;
+  if (oneScreen.matches) {
+    w = Math.min(r.width, r.height * 1.6); h = w / 1.6;
+    arenaCv.style.width = w + 'px'; arenaCv.style.height = h + 'px';
+  } else { arenaCv.style.width = ''; arenaCv.style.height = ''; w = r.width; h = w / 1.6; }
+  arenaCv.width = Math.max(1, Math.round(w * dpr)); arenaCv.height = Math.max(1, Math.round(h * dpr));
+  var c = chartBox.getBoundingClientRect();
+  chartW = Math.max(1, c.width); chartH = Math.max(1, c.height);
+  chartCv.width = Math.round(chartW * dpr); chartCv.height = Math.round(chartH * dpr);
+  cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function drawArena() {
+  var s = arenaCv.width / W;
+  actx.setTransform(s, 0, 0, s, 0, 0); actx.globalAlpha = 1;
+  actx.fillStyle = '#0E1A16'; actx.fillRect(0, 0, W, H);
+  actx.strokeStyle = 'rgba(160,205,190,0.06)'; actx.lineWidth = 1; actx.beginPath();
+  for (var gx = 60; gx < W; gx += 60) { actx.moveTo(gx, 0); actx.lineTo(gx, H); }
+  for (var gy = 60; gy < H; gy += 60) { actx.moveTo(0, gy); actx.lineTo(W, gy); }
+  actx.stroke();
+  var i, f, c;
+  actx.fillStyle = FOODS.seed.color; actx.beginPath();
+  for (i = 0; i < sim.food.length; i++) { f = sim.food[i]; if (f.type === 'seed') { actx.moveTo(f.x + 3.8, f.y); actx.ellipse(f.x, f.y, 3.8, 2.3, f.rot, 0, 6.283); } }
+  actx.fill();
+  actx.fillStyle = FOODS.berry.color; actx.beginPath();
+  for (i = 0; i < sim.food.length; i++) { f = sim.food[i]; if (f.type === 'berry') { actx.moveTo(f.x + 4, f.y); actx.arc(f.x, f.y, 4, 0, 6.283); } }
+  actx.fill();
+  actx.fillStyle = 'rgba(255,255,255,0.55)'; actx.beginPath();
+  for (i = 0; i < sim.food.length; i++) { f = sim.food[i]; if (f.type === 'berry') { actx.moveTo(f.x - 0.4, f.y - 1.4); actx.arc(f.x - 1.4, f.y - 1.4, 1.1, 0, 6.283); } }
+  actx.fill();
+  actx.fillStyle = FOODS.nectar.color; actx.strokeStyle = 'rgba(255,255,255,0.6)'; actx.lineWidth = 1; actx.beginPath();
+  for (i = 0; i < sim.food.length; i++) { f = sim.food[i]; if (f.type === 'nectar') { actx.moveTo(f.x + 3.4, f.y); actx.arc(f.x, f.y, 3.4, 0, 6.283); } }
+  actx.fill(); actx.stroke();
+  actx.lineWidth = 1.2;
+  for (i = 0; i < sim.creatures.length; i++) {
+    c = sim.creatures[i];
+    var sp = SPECIES[c.sp], R = sp.sides === 3 ? 9 : 7.5;
+    actx.globalAlpha = 0.4 + 0.6 * Math.min(1, c.e / 70);
+    actx.fillStyle = sp.color; actx.strokeStyle = 'rgba(255,255,255,0.75)'; actx.beginPath();
+    if (sp.sides === 0) actx.arc(c.x, c.y, R, 0, 6.283);
+    else {
+      for (var k = 0; k < sp.sides; k++) {
+        var ang = c.a + k * 6.283185 / sp.sides, px = c.x + Math.cos(ang) * R, py = c.y + Math.sin(ang) * R;
+        if (k === 0) actx.moveTo(px, py); else actx.lineTo(px, py);
+      }
+      actx.closePath();
+    }
+    actx.fill(); actx.stroke();
+    actx.fillStyle = '#0A1512'; actx.beginPath(); actx.arc(c.x + Math.cos(c.a) * 3.2, c.y + Math.sin(c.a) * 3.2, 1.7, 0, 6.283); actx.fill();
+  }
+  actx.globalAlpha = 1;
+  if (!reduceMotion) {
+    for (i = 0; i < fx.length; i++) {
+      var e = fx[i];
+      if (e.kind === 'birth') {
+        var p = e.age / 0.5; actx.globalAlpha = 1 - p; actx.strokeStyle = SPECIES[e.sp].color; actx.lineWidth = 1.5;
+        actx.beginPath(); actx.arc(e.x, e.y, 8 + p * 16, 0, 6.283); actx.stroke();
+      } else if (e.kind === 'starved') {
+        actx.globalAlpha = 1 - e.age; actx.strokeStyle = '#F58A98'; actx.lineWidth = 2; actx.beginPath();
+        actx.moveTo(e.x - 4, e.y - 4); actx.lineTo(e.x + 4, e.y + 4); actx.moveTo(e.x + 4, e.y - 4); actx.lineTo(e.x - 4, e.y + 4); actx.stroke();
+      } else {
+        actx.globalAlpha = 0.6 * (1 - e.age / 0.8); actx.fillStyle = '#C9D6CE';
+        actx.beginPath(); actx.arc(e.x, e.y, 3, 0, 6.283); actx.fill();
+      }
+    }
+    actx.globalAlpha = 1;
+  }
+}
+function stepFx(dtReal) {
+  var ev = sim.events;
+  for (var i = 0; i < ev.length; i++) fx.push({ kind: ev[i].kind, x: ev[i].x, y: ev[i].y, sp: ev[i].sp, age: 0 });
+  ev.length = 0;
+  if (fx.length > 160) fx.splice(0, fx.length - 160);
+  var keep = [];
+  for (var j = 0; j < fx.length; j++) {
+    fx[j].age += dtReal;
+    if (fx[j].age < (fx[j].kind === 'birth' ? 0.5 : (fx[j].kind === 'starved' ? 1.0 : 0.8))) keep.push(fx[j]);
+  }
+  fx = reduceMotion ? [] : keep;
+}
+
+/* ---------- drawing: graph ---------- */
+function niceStep(range, maxTicks) {
+  var raw = range / maxTicks, pow = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+  var opts = [1, 2, 5, 10];
+  for (var i = 0; i < opts.length; i++) if (opts[i] * pow >= raw) return opts[i] * pow;
+  return 10 * pow;
+}
+function timeStep(span, maxTicks) {
+  var opts = [10, 20, 25, 30, 50, 60, 100];
+  for (var i = 0; i < opts.length; i++) if (span / opts[i] <= maxTicks) return opts[i];
+  return 100;
+}
+var MONO = '11px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+function drawChart() {
+  var VW = chartW, VH = chartH;
+  cctx.clearRect(0, 0, VW, VH);
+  cctx.fillStyle = '#0E1A16'; cctx.fillRect(0, 0, VW, VH);
+  var L = 38, R = 40, T = 14, B = 22, pw = VW - L - R, ph = VH - T - B;
+  if (pw < 20 || ph < 20) return;
+  cctx.font = MONO; cctx.textBaseline = 'middle';
+  var tMax = sc.length, tStep = timeStep(tMax, Math.max(3, Math.floor(pw / 60)));
+  var top = 20, r, j;
+  for (r = 0; r < history.length; r++) ids.forEach(function (id) { top = Math.max(top, history[r].c[id] || 0); });
+  var yStep = niceStep(top * 1.05, Math.max(2, Math.min(5, Math.floor(ph / 30)))), yMax = Math.ceil(top * 1.05 / yStep) * yStep;
+  function X(t) { return L + t / tMax * pw; }
+  function Y(n) { return T + ph - n / yMax * ph; }
+  cctx.strokeStyle = 'rgba(160,205,190,0.14)'; cctx.lineWidth = 1; cctx.fillStyle = '#9FB0B5'; cctx.textAlign = 'right';
+  for (var v = 0; v <= yMax + 1e-9; v += yStep) {
+    cctx.beginPath(); cctx.moveTo(L, Math.round(Y(v)) + 0.5); cctx.lineTo(L + pw, Math.round(Y(v)) + 0.5); cctx.stroke();
+    cctx.fillText(String(v), L - 7, Y(v));
+  }
+  cctx.textAlign = 'center';
+  for (var t = 0; t <= tMax + 1e-9; t += tStep) {
+    cctx.beginPath(); cctx.moveTo(Math.round(X(t)) + 0.5, T); cctx.lineTo(Math.round(X(t)) + 0.5, T + ph); cctx.stroke();
+    cctx.fillText(String(t), X(t), VH - 10);
+  }
+  // scheduled events
+  sc.events.forEach(function (e) {
+    var mx = X(e.t), passed = sim.t >= e.t;
+    cctx.save(); cctx.setLineDash([3, 4]); cctx.strokeStyle = passed ? 'rgba(237,176,65,0.9)' : 'rgba(237,176,65,0.45)'; cctx.lineWidth = 1.2;
+    cctx.beginPath(); cctx.moveTo(mx, T); cctx.lineTo(mx, T + ph); cctx.stroke(); cctx.restore();
+    cctx.fillStyle = '#EDB041'; cctx.textAlign = 'left'; cctx.fillText('Event at ' + e.t + ' s', mx + 5, T + 7);
+  });
+  var ends = [];
+  ids.forEach(function (id) {
+    var sp = SPECIES[id], any = false, first = true;
+    cctx.strokeStyle = sp.color; cctx.lineWidth = 2.2; cctx.lineJoin = 'round'; cctx.beginPath();
+    for (j = 0; j < history.length; j++) {
+      var n = history[j].c[id];
+      if (!any && n === 0) continue;
+      any = true;
+      var px = X(history[j].t), py = Y(n);
+      if (first) { cctx.moveTo(px, py); first = false; } else cctx.lineTo(px, py);
+    }
+    cctx.stroke();
+    if (any) {
+      var lastRow = history[history.length - 1];
+      ends.push({ x: X(lastRow.t), y: Y(lastRow.c[id]), n: lastRow.c[id], color: sp.color });
+    }
+  });
+  ends.sort(function (a, b) { return a.y - b.y; });
+  for (var i = 0; i < ends.length; i++) { ends[i].ly = ends[i].y; if (i > 0 && ends[i].ly - ends[i - 1].ly < 13) ends[i].ly = ends[i - 1].ly + 13; }
+  cctx.textAlign = 'left';
+  ends.forEach(function (e) {
+    cctx.fillStyle = e.color; cctx.beginPath(); cctx.arc(e.x, e.y, 3.5, 0, 6.283); cctx.fill();
+    cctx.fillText(String(e.n), e.x + 7, Math.min(e.ly, T + ph));
+  });
+}
+
+/* ---------- controls ---------- */
+var letters = $('letters');
+SCENARIOS.forEach(function (s, i) {
+  var b = document.createElement('button');
+  b.type = 'button'; b.className = 'letter'; b.textContent = s.id.toUpperCase();
+  b.setAttribute('aria-label', 'Scenario ' + s.id.toUpperCase());
+  b.addEventListener('click', function () { setHash(s.id); load(i); });
+  letters.appendChild(b);
+});
+function setHash(id) { try { history_replace('#scenario-' + id); } catch (e) {} }
+function history_replace(h) { if (location.hash !== h) location.hash = h; }
+function fromHash() {
+  var m = /^#scenario-([a-z])$/.exec(location.hash || '');
+  if (!m) return 0;
+  for (var i = 0; i < SCENARIOS.length; i++) if (SCENARIOS[i].id === m[1]) return i;
+  return 0;
+}
+window.addEventListener('hashchange', function () { var i = fromHash(); if (i !== cur) load(i); });
+$('play').addEventListener('click', function () { if (!done) { running = !running; $('banner').hidden = true; refresh(); $('banner').hidden = true; } });
+$('replay').addEventListener('click', function () { load(cur); running = true; refresh(); });
+$('speed').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  speed = parseInt(b.dataset.speed, 10);
+  var all = $('speed').children;
+  for (var i = 0; i < all.length; i++) all[i].setAttribute('aria-pressed', String(all[i] === b));
+});
+
+/* ---------- loop ---------- */
+var lastTs = 0, acc = 0, dataAcc = 0, chartAcc = 0;
+function frame(ts) {
+  var dtReal = Math.min(0.1, (ts - lastTs) / 1000); lastTs = ts;
+  if (running) {
+    acc += dtReal * speed;
+    var steps = 0;
+    while (acc >= DT && steps < 30 && running) { stepOnce(); acc -= DT; steps++; }
+    if (steps >= 30) acc = 0;
+    if (done) { acc = 0; refresh(); }
+  }
+  stepFx(dtReal);
+  drawArena();
+  chartAcc += dtReal; if (chartAcc > 0.1) { chartAcc = 0; drawChart(); }
+  dataAcc += dtReal; if (dataAcc > 0.2) { dataAcc = 0; updateData(); }
+  requestAnimationFrame(frame);
+}
+function onResize() { fitCanvases(); drawArena(); drawChart(); }
+if (window.ResizeObserver) { new ResizeObserver(onResize).observe(dishBox); new ResizeObserver(onResize).observe(chartBox); }
+else window.addEventListener('resize', onResize);
+fitCanvases();
+load(fromHash());
+requestAnimationFrame(function (ts) { lastTs = ts; requestAnimationFrame(frame); });
+})();
+</script>
+
+</body></html>
